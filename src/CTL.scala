@@ -9,11 +9,23 @@ object CTL {
 
   abstract class Formula
   
+  case object True extends Formula
+  case object False extends Formula
   case class Prop(a: Atom) extends Formula
   case class And(f1: Formula, f2: Formula) extends Formula
+  case class Not(f: Formula) extends Formula
+  case class Or(f1: Formula, f2: Formula) extends Formula
+  case class Implies(f1: Formula, f2: Formula) extends Formula
+  case class EX(f: Formula) extends Formula
   case class EG(f: Formula) extends Formula
-  
-  
+  case class EU(f1: Formula, f2: Formula) extends Formula
+  /*
+  case class AX(f: Formula) extends Formula
+  case class AU(f1: Formula, f2: Formula) extends Formula
+  case class EF(f: Formula) extends Formula
+  case class AF(f: Formula) extends Formula
+  case class AG(f: Formula) extends Formula
+  */
   case class State(atoms: Set[Atom])
   
   case class Automaton(tr: List[(State,State)]) 
@@ -42,35 +54,22 @@ object CTL {
   }
   
   
-  def always_aux(a: Automaton, p: Path, f: Formula, i: BigInt): Boolean = {
-    valid(a, p(i), f) && always_aux(a, p, f, i+1)
-  } holds
-  
-  def always(a: Automaton, p: Path, f: Formula): Boolean = always_aux(a, p, f, 0)
-  
-  
-  def sometime_aux(a: Automaton, p: Path, f: Formula, i: BigInt): Boolean = {
-    valid(a, p(i), f) || sometime_aux(a, p, f, i+1)
-  } holds
-  
-  def sometime(a: Automaton, p: Path, f: Formula): Boolean = sometime_aux(a, p, f, 0)
-  
-  
-  def correctPath_aux(a: Automaton, p: Path, i: BigInt): Boolean = {
-    a.tr.contains((p.h(i), p.h(i+1))) && correctPath_aux(a, p, i+1)
+  def canLoop(a: Automaton, states: List[State], g: Formula): Boolean = {
+    states.exists(s => 
+      post(s, a.tr).exists(s2 => 
+        states.contains(s2) || 
+        (valid(a, s2, g) && canLoop(a, s2 :: states, g))
+      )
+    )
   }
-  
-  def correctPath(a: Automaton, p: Path, s: State): Boolean = correctPath_aux(a, p, 0) && p(0) == s
   
   
   def valid(a: Automaton, s: State, f: Formula): Boolean = {
     f match {
       case Prop(a) => s.atoms.contains(a)
       case And(f1,f2) => valid(a, s, f1) && valid(a, s, f2)
-      case EG(g) => 
-        !forall((p: Path) => (correctPath(a, p, s) ==>  !always(a, p, g)))
-        // exists((p: Path) => correctPath(a,p,s) && always(a, p, g))
+      case EG(g) => valid(a, s, g) && canLoop(a, List(s), g)
     } 
-  } holds
+  }
   
 }
