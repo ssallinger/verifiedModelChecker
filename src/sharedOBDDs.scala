@@ -1,12 +1,14 @@
+import leon.collection._
+import leon.lang._
+
 //shared BDDs
 //in this approach all obdds are stored in the same tables T, H => memory leak! -> garbage collector on tables would be useful
 object sharedOBDDs {
-  class BDD(val T: Map[Int, (Int, Int, Int)], val H: Map[(Int, Int, Int), Int], val size: Int)
+  case class BDD(T: Map[Int, (Int, Int, Int)], H: Map[(Int, Int, Int), Int], size: Int)
 
   abstract class Expression
-  class Constant() extends Expression
-  case object True extends Constant
-  case object False extends Constant
+  case object True extends Expression
+  case object False extends Expression
   case class Variable(i: Int) extends Expression
   case class Negation(e: Expression) extends Expression
   case class Conjunction(e1: Expression, e2: Expression) extends Expression
@@ -39,7 +41,7 @@ object sharedOBDDs {
   }
   
   //proof: see leon example 
-  def restrictExpression(e: Expression, i: Int, value: Constant): Expression = {
+  def restrictExpression(e: Expression, i: Int, value: Expression): Expression = {
     e match {
       case True        => True
       case False       => False
@@ -124,15 +126,15 @@ object sharedOBDDs {
       if (op(r1 == 1, r2 == 1)) (b, 1) else (b, 0)
     else if (variable(b, r1) == variable(b, r2)) {
       val loApp = apply(b, op, low(b, r1), low(b, r2))
-      val hiApp = apply(loApp._1, op, high(b, r1), high(b, r2)) //TODO lookup in b ok?
+      val hiApp = apply(loApp._1, op, high(b, r1), high(b, r2))
       testAndInsert(hiApp._1, variable(b, r1), loApp._2, hiApp._2)
     } else if (variable(b, r1) < variable(b, r2)) {
       val loApp = apply(b, op, low(b, r1), r2)
-      val hiApp = apply(loApp._1, op, high(b, r1), r2) //TODO lookup in b ok?
+      val hiApp = apply(loApp._1, op, high(b, r1), r2)
       testAndInsert(hiApp._1, variable(b, r1), loApp._2, hiApp._2)
     } else {
       val loApp = apply(b, op, r1, low(b, r2))
-      val hiApp = apply(loApp._1, op, r1, high(b, r2)) //TODO lookup in b ok?
+      val hiApp = apply(loApp._1, op, r1, high(b, r2))
       testAndInsert(hiApp._1, variable(b, r2), loApp._2, hiApp._2)
     }
 
@@ -146,21 +148,10 @@ object sharedOBDDs {
     intersect(bNew._1, r1, bNew._2)
   }
 
-  //optimize using complement pointers (e. g. implement with negative numbers for ids??) -> constant time
-  //Hahahahahaha :D :D :D :D :D :D
   def complement(b: BDD, root: Int): (BDD, Int) = apply(b, _ != _, root, 1)
 
-  //Hahahahahaha :D
   def equivalent(r1: Int, r2: Int) = r1 == r2
 
-  //buggy
-  //  //precond: encoding of set + element of set
-  //  def element(b: BDD, set: Int, el: Int): (BDD, Int) =  {
-  //    val notRes = complement(b, set)
-  //    //val finalRes = union(notRes._1, notRes._2, el)
-  //    //finalRes._2 == 1
-  //    union(notRes._1, notRes._2, el)
-  //  }
 
   //TODO use restrict algo instead??
   //precond: all variables in map 
@@ -211,7 +202,8 @@ object sharedOBDDs {
     }
   }
 
-  def preE(b: BDD, root: Int, transitions: BDD, rootTrans: Int): (BDD, Int) = ???
+  //TODO implement
+  def preE(b: BDD, root: Int, transitions: BDD, rootTrans: Int): (BDD, Int) = (b, root)
     //val bPrimed = rename(b, )//TODO this is inefficient -> unprimed and primed variables should be interleaved
   
 

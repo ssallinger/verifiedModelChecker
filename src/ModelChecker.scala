@@ -1,7 +1,9 @@
+import leon.collection._
+import leon.lang._
+
 import sharedOBDDs._
 
 object ModelChecker {
-
   //CTL formula
   sealed abstract class Formula
   case class Top() extends Formula
@@ -20,20 +22,15 @@ object ModelChecker {
   case class AF(f: Formula) extends Formula
   case class AG(f: Formula) extends Formula
 
-  type rootedBDD = (BDD, Int)
 
-  def root(b: rootedBDD) = b._2
-  def bdd(b: rootedBDD) = b._1
+  def root(b: (BDD, Int)) = b._2
+  def bdd(b: (BDD, Int)) = b._1
 
-  //class Model(val states: rootedBDD, val transition: rootedBDD) //labelling implicit in encoding of states?!
-
-  def sat(states: rootedBDD, transitions: rootedBDD, f: Formula): rootedBDD = {
+  def sat(states: (BDD, Int), transitions: (BDD, Int), f: Formula): (BDD, Int) = {
     f match {
       case Top()    => states
-      case Bottom() => (bdd(states), 0) //right representation of empty set?
+      case Bottom() => (bdd(states), 0)
       case Atom(id) => {
-        //val b = build(bdd(states), Variable(id))
-        //intersect(bdd(b), root(states), root(b)) //is this really neccessary? -> no (comparable to AND Top())
         build(bdd(states), Variable(id))
       }
       case Not(f1) => {
@@ -50,7 +47,6 @@ object ModelChecker {
         val b2 = sat((bdd(b1), root(states)), transitions, f2)
         union(bdd(b2), root(b1), root(b2))
       }
-      //TODO show equivalences??
       case Implies(f1, f2) => sat(states, transitions, Or(f1, Not(f2)))
       case AX(f1)          => sat(states, transitions, Not(EX(Not(f1))))
       case EX(f1)          => satex(states, transitions, f1)
@@ -64,15 +60,10 @@ object ModelChecker {
   }
   
   //EG, EU, EX form minimal adequate subset of temporal connectives
-  def satex(states: rootedBDD, transitions: rootedBDD, f: Formula): rootedBDD = ???
-  def sateu(states: rootedBDD, transitions: rootedBDD, f1: Formula, f2: Formula): rootedBDD = ??? //see book
-  def sateg(states: rootedBDD, transitions: rootedBDD, f: Formula): rootedBDD = ??? //see Isabelle tutorial
-  
-  //1) implement restrict
-  
-  
-  //2) implement exists (1 line)
-  //3) implement preE -> strange
-  //4) implement preA (in terms of preE)
-  //5) move on to the interesting stuff
+  //TODO implement
+  def satex(states: (BDD, Int), transitions: (BDD, Int), f: Formula): (BDD, Int) = states
+  def sateu(states: (BDD, Int), transitions: (BDD, Int), f1: Formula, f2: Formula): (BDD, Int) = states //see book
+  def sateg(states: (BDD, Int), transitions: (BDD, Int), f: Formula): (BDD, Int) = states //see Isabelle tutorial
+
 }
+
