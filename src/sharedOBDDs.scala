@@ -1,6 +1,8 @@
 import leon.collection._
 import leon.lang._
 
+//import CTL._
+
 //shared BDDs
 //in this approach all obdds are stored in the same tables T, H => memory leak! -> garbage collector on tables would be useful
 object sharedOBDDs {
@@ -13,7 +15,7 @@ object sharedOBDDs {
   case class Negation(e: Expression) extends Expression
   case class Conjunction(e1: Expression, e2: Expression) extends Expression
   case class Disjunction(e1: Expression, e2: Expression) extends Expression
-
+ 
   def initT(numberOfVars: BigInt): Map[BigInt, (BigInt, BigInt, BigInt)] = {
     Map(BigInt(0) -> (numberOfVars + 1, BigInt(-1), BigInt(-1)), BigInt(1) -> (numberOfVars + 1, BigInt(-1), BigInt(-1)))
   }
@@ -212,5 +214,34 @@ object sharedOBDDs {
     val preExists = preE(complementSet._1, complementSet._2, transitions, transRoot)
     minus(preExists._1, root, preExists._2)
   }
-
+  
+  def extend(s: Set[List[Boolean]], i: BigInt): Set[List[Boolean]] = {
+    if(i == 0)
+      s
+    else
+      extend(setToList(s).map(l => false::l).content ++ setToList(s).map(l => true::l).content, i - 1)
+  }
+  
+  def contentLists(b: BDD, root: BigInt) : Set[List[Boolean]] = {
+    if(root == 0)
+      Set()
+    else if(root == 1)
+      Set(List[Boolean]())
+    else {
+      val lo = if(variable(b, root) - variable(b, low(b, root)) == 1) contentLists(b, low(b, root))
+                else extend(contentLists(b, low(b, root)), variable(b, root) - variable(b, low(b, root)) - 1)
+      val hi = if(variable(b, root) - variable(b, low(b, root)) == 1) contentLists(b, low(b, root))
+                  else extend(contentLists(b, low(b, root)), variable(b, root) - variable(b, low(b, root)) - 1)
+      setToList(lo).map(l => false::l).content ++ setToList(hi).map(l => true::l).content
+    }
+  }
+  
+  /*def content(b: BDD, root: BigInt) : Set[State] = {
+    setToList(contentLists(b, root)).map(l => State(l)).content
+  }*/
+  
+  def correctUnion(b: BDD, root1: BigInt, root2: BigInt) : Boolean = {
+  	val bddUnion = union(b, root1, root2)
+  	(b.T contains root1) && (contentLists(bddUnion._1, bddUnion._2) == contentLists(b, root1) ++ contentLists(b, root2))
+  } holds
 }
