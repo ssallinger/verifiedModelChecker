@@ -1,12 +1,10 @@
 import leon.collection._
 import leon.lang._
+import leon.annotation._
 
-//import CTL._
-
-//shared BDDs
-//in this approach all obdds are stored in the same tables T, H => memory leak! -> garbage collector on tables would be useful
 object sharedOBDDs {
-  case class BDD(T: Map[BigInt, (BigInt, BigInt, BigInt)], H: Map[(BigInt, BigInt, BigInt), BigInt], size: BigInt)
+
+  case class BDD(nodes: List[BigInt], T: Map[BigInt, (BigInt, BigInt, BigInt)], H: Map[(BigInt, BigInt, BigInt), BigInt], size: BigInt)
 
   abstract class Expression
   case object Top extends Expression
@@ -22,14 +20,45 @@ object sharedOBDDs {
 
   def initH(): Map[(BigInt, BigInt, BigInt), BigInt] = Map()
 
+  
+  def wellFormed[X,Y](l: List[X], m: Map[X,Y]): Boolean = l match {
+    case Nil() => true
+    case Cons(x, xs) => m.contains(x) && wellFormed(xs,m)
+  }
+  
+  @induct
+  def wellFormedUpdate[X,Y](l: List[X], m: Map[X,Y], x: X, y: Y): Boolean = {
+    require(wellFormed(l,m))
+    
+    wellFormed(x :: l, m.updated(x,y))
+  } holds 
+  
   //smarter allocation scheme for ids needed?
   def add(b: BDD, i: BigInt, l: BigInt, h: BigInt): BDD = {
-    new BDD(b.T + (b.size -> (i, l, h)), b.H + ((i, l, h) -> b.size), b.size + 1)
+    BDD(b.size :: b.nodes, b.T.updated(b.size, (i, l, h)), b.H.updated((i, l, h), b.size), b.size + 1)
   }
+  
+  def wellFormedAdd(b: BDD, i: BigInt, l: BigInt, h: BigInt): Boolean = {
+    require(wellFormed(b.nodes,b.T))
+    
+    val res = add(b,i,l,h)
+    b.nodes.content.subsetOf(res.nodes.content) &&
+    wellFormedUpdate(b.nodes, b.T, b.size, (i,l,h)) &&
+    wellFormed(res.nodes,res.T)
+  } holds
 
-  def variable(b: BDD, node: BigInt): BigInt = b.T(node)._1
-  def low(b: BDD, node: BigInt): BigInt = b.T(node)._2
-  def high(b: BDD, node: BigInt): BigInt = b.T(node)._3
+  def variable(b: BDD, node: BigInt): BigInt = {
+    require(b.T.contains(node))
+    b.T(node)._1
+  }
+  def low(b: BDD, node: BigInt): BigInt = {
+    require(b.T.contains(node))
+    b.T(node)._2
+  }
+  def high(b: BDD, node: BigInt): BigInt = {
+    require(b.T.contains(node))
+    b.T(node)._3
+  }
 
   def testAndInsert(b: BDD, i: BigInt, l: BigInt, h: BigInt): (BDD, BigInt) = {
     if (l == h)
@@ -41,6 +70,8 @@ object sharedOBDDs {
       (bNew, b.size) //adapt if allocation scheme for IDs changes!
     }
   }
+  
+//   def wellFormedTestAndInsert(b: BDD, i: BigInt, l: BigInt, h: BigInt)
   
   //proof: see leon example 
   def restrictExpression(e: Expression, i: BigInt, value: Expression): Expression = {
@@ -89,15 +120,16 @@ object sharedOBDDs {
   def build(b: BDD, e: Expression): (BDD, BigInt) = {
     val n = maxVarLabel(e, 0) //assumption: variables are labelled with integers starting from 1
     def buildRec(b1: BDD, e: Expression, i: BigInt): (BDD, BigInt) = {
+//       require(e == restrictExpression(
       if (i > n) {
         e match { // no more variables -> only constants possible
           case Top  => (b1, 1)
           case Bottom => (b1, 0)
         }
       } else {
-        val r1 = buildRec(b1, restrictExpression(e, i, Bottom), i + 1)
-        val r2 = buildRec(r1._1, restrictExpression(e, i, Top), i + 1)
-        testAndInsert(r2._1, i, r1._2, r2._2)
+        val (bdd1, j1) = buildRec(b1, restrictExpression(e, i, Bottom), i + 1)
+        val (bdd2, j2) = buildRec(bdd1, restrictExpression(e, i, Top), i + 1)
+        testAndInsert(bdd2, i, j1, j2)
       }
     }
 
@@ -106,8 +138,8 @@ object sharedOBDDs {
 
   def maxVarLabel(e: Expression, max: BigInt): BigInt = {
     e match {
-      case Top         => 0
-      case Bottom        => 0
+      case Top         => max
+      case Bottom        => max
       case Variable(i)  => if (i > max) i else max
       case Negation(e1) => maxVarLabel(e1, max)
       case Conjunction(e1, e2) => {
@@ -121,16 +153,39 @@ object sharedOBDDs {
 
     }
   }
+  
+  
+  def containsAllChildren(b: BDD, r: BigInt): Boolean = {
+    b.T.contains(r) &&
+    containsAllChildren(b, low(b,r)) &&
+    containsAllChildren(b, high(b,r)) 
+  }
+  
+  def allChildrenInSet(b: BDD, r: BigInt, s: List[BigInt]): Boolean = {
+    s.contains(r) &&
+    allChildrenInSet(b, low(b,r), s) &&
+    allChildrenInSet(b, high(b,r), s) 
+  }
 
+  
+  
   //no dynamic programming used here in order to stay purely functional
   def apply(b: BDD, op: (Boolean, Boolean) => Boolean, r1: BigInt, r2: BigInt): (BDD, BigInt) = {
+    require(containsAllChildren(b, r1) && containsAllChildren(b, r2) && wellFormed(b.nodes, b.T))
+  
     if ((r1 == 0 || r1 == 1) && (r2 == 0 || r2 == 1)) //two Terminals
-      if (op(r1 == 1, r2 == 1)) (b, 1) else (b, 0)
+      if (op(r1 == 1, r2 == 1)) (b, BigInt(1)) 
+      else (b, BigInt(0))
     else if (variable(b, r1) == variable(b, r2)) {
       val loApp = apply(b, op, low(b, r1), low(b, r2))
+      // b.nodes subset of loApp.nodes
+      
+      
       val hiApp = apply(loApp._1, op, high(b, r1), high(b, r2))
       testAndInsert(hiApp._1, variable(b, r1), loApp._2, hiApp._2)
-    } else if (variable(b, r1) < variable(b, r2)) {
+    } 
+//     else (b,r1)
+    else if (variable(b, r1) < variable(b, r2)) {
       val loApp = apply(b, op, low(b, r1), r2)
       val hiApp = apply(loApp._1, op, high(b, r1), r2)
       testAndInsert(hiApp._1, variable(b, r1), loApp._2, hiApp._2)
@@ -140,7 +195,14 @@ object sharedOBDDs {
       testAndInsert(hiApp._1, variable(b, r2), loApp._2, hiApp._2)
     }
 
-  }
+  } ensuring ((res: (BDD, BigInt)) => {
+    val (bdd,r) = res
+    b.nodes.content.subsetOf(bdd.nodes.content) &&
+    wellFormed(bdd.nodes, bdd.T)
+  })
+//     containsAllChildren(bdd,r) &&
+//     bdd.wellFormed()
+//   })
 
   def union(b: BDD, r1: BigInt, r2: BigInt) = apply(b, _ || _, r1, r2)
   def intersect(b: BDD, r1: BigInt, r2: BigInt) = apply(b, _ && _, r1, r2)

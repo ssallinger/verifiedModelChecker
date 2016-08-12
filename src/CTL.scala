@@ -30,9 +30,6 @@ object CTL {
   
   case class Automaton(tr: List[(State,State)]) 
   
-  case class Path(h: Map[BigInt, State]) {
-    def apply(i: BigInt) = h(i)
-  }
   
   def post(s: State, tr: List[(State,State)]): List[State] = {
     tr match {
@@ -69,6 +66,7 @@ object CTL {
       case Prop(a) => s.atoms.contains(a)
       case And(f1,f2) => valid(a, s, f1) && valid(a, s, f2)
       case EG(g) => valid(a, s, g) && canLoop(a, List(s), g)
+      case _ => true
     } 
   }
   
