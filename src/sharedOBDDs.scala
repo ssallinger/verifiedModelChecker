@@ -1,6 +1,7 @@
 import leon.collection._
 import leon.lang._
 import leon.annotation._
+import leon.proof._
 
 object sharedOBDDs {
 
@@ -49,7 +50,7 @@ object sharedOBDDs {
     val res = add(b, n)
     b.nodes.content.subsetOf(res.nodes.content) &&
     wellFormedUpdate(b.nodes, b.T, b.size, n) &&
-    wellFormed(res.nodes,res.T)
+    wellFormed(res.nodes, res.T)
   } holds
   
   def getNode(b: BDD, id: BigInt): Node = {
@@ -68,8 +69,15 @@ object sharedOBDDs {
     }
   }
   
-//   def wellFormedTestAndInsert(b: BDD, i: BigInt, l: BigInt, h: BigInt) //TODO
-  
+  def wellFormedTestAndInsert(b: BDD, n: Node) : Boolean = {
+    require(wellFormed(b.nodes, b.T))
+    
+    val res = testAndInsert(b, n)
+    b.nodes.content.subsetOf(res.b.nodes.content) &&
+    wellFormedAdd(b, n) &&
+    wellFormed(res.b.nodes, res.b.T)
+  } holds
+
   def isConstant(e: Expression) : Boolean = e match {
     case Top => true
     case Bottom => true
@@ -123,7 +131,7 @@ object sharedOBDDs {
   }
 
   def build(b: BDD, e: Expression): RootedBDD = {
-    val n = maxVarLabel(e, 0) //assumption: variables are labelled with integers starting from 1
+    val n = maxVarLabel(e)
     def buildRec(b1: BDD, e: Expression, i: BigInt): RootedBDD = {
 //       require(e == restrictExpression(
       if (i > n) {
@@ -141,19 +149,21 @@ object sharedOBDDs {
     buildRec(b, e, 1)
   }
 
-  def maxVarLabel(e: Expression, max: BigInt): BigInt = {//TODO refactor
+  def maxVarLabel(e: Expression): BigInt = {
     e match {
-      case Top          => max
-      case Bottom       => max
-      case Variable(i)  => if (i > max) i else max
-      case Negation(e1) => maxVarLabel(e1, max)
+      case Top          => 0
+      case Bottom       => 0
+      case Variable(i)  => i
+      case Negation(e1) => maxVarLabel(e1)
       case Conjunction(e1, e2) => {
-        val max1 = maxVarLabel(e1, max)
-        maxVarLabel(e2, max1)
+        val max1 = maxVarLabel(e1)
+        val max2 = maxVarLabel(e2)
+        if(max1 > max2) max1 else max2
       }
       case Disjunction(e1, e2) => {
-        val max1 = maxVarLabel(e1, max)
-        maxVarLabel(e2, max1)
+        val max1 = maxVarLabel(e1)
+        val max2 = maxVarLabel(e2)
+        if(max1 > max2) max1 else max2
       }
     }
   }
@@ -170,9 +180,8 @@ object sharedOBDDs {
     allChildrenInSet(b, getNode(b,r).high, s) 
   }
   
-  //no dynamic programming used here in order to stay purely functional
   def apply(b: BDD, op: (Boolean, Boolean) => Boolean, r1: BigInt, r2: BigInt): RootedBDD = {
-    require(containsAllChildren(b, r1) && containsAllChildren(b, r2) && wellFormed(b.nodes, b.T))
+    //require(containsAllChildren(b, r1) && containsAllChildren(b, r2) && wellFormed(b.nodes, b.T))
   
     if ((r1 == 0 || r1 == 1) && (r2 == 0 || r2 == 1)) //two Terminals
       if (op(r1 == 1, r2 == 1)) RootedBDD(b, BigInt(1)) 
@@ -180,8 +189,6 @@ object sharedOBDDs {
     else if (getNode(b, r1).variable == getNode(b, r2).variable) {
       val RootedBDD(bLow, rLow) = apply(b, op, getNode(b, r1).low, getNode(b, r2).low)
       // b.nodes subset of loApp.nodes
-      
-      
       val RootedBDD(bHigh, rHigh) = apply(bLow, op, getNode(b, r1).high, getNode(b, r2).high)
       testAndInsert(bHigh, Node(getNode(b, r1).variable, rLow, rHigh))
     } 
@@ -196,15 +203,65 @@ object sharedOBDDs {
       testAndInsert(bHigh, Node(getNode(b, r2).variable, rLow, rHigh))
     }
 
-  } ensuring ((res: RootedBDD) => {
+  } /*ensuring ((res: RootedBDD) => {
     val RootedBDD(bdd,r) = res
     b.nodes.content.subsetOf(bdd.nodes.content) &&
     wellFormed(bdd.nodes, bdd.T)
-  })
+  })*/
 //     containsAllChildren(bdd,r) &&
 //     bdd.wellFormed()
 //   })
 
+  //TODO prove
+  def correctApplyOr(b: BDD, f: Expression, g: Expression, rf: BigInt, rg: BigInt) : Boolean = {
+    require(represents(b, rf, f) && represents(b, rg, g))
+    val res = apply(b, _ || _, rf, rg)
+    represents(res.b, res.root, Conjunction(f, g)) because {
+      if((rf == 0 || rf == 1) && (rg == 0 || rg == 1))
+        trivial
+      else if (getNode(b, rf).variable == getNode(b, rg).variable) {
+        val v = getNode(b, rf).variable
+        restrictRepresentsChildren(b, rf, f) && //for precondition of I.H.
+        restrictRepresentsChildren(b, rg, g) &&
+        correctApplyOr(b, //I.H.
+                       restrictExpression(f, v, Bottom),
+                       restrictExpression(g, v, Bottom),
+                       getNode(b, rf).low,
+                       getNode(b, rg).low) &&
+        correctApplyOr(b,//I.H.
+                       restrictExpression(f, v, Top),
+                       restrictExpression(g, v, Top),
+                       getNode(b, rf).high,
+                       getNode(b, rg).high) &&
+        shannonExpansionEquivalence(b, f, v) &&
+        represents(res.b, res.root, shannonExpansion(f, v)) //&&
+        //testand insert of node repr. shannon expansion
+                       
+      }
+      else trivial//TODO
+    }
+  } holds
+  
+  def shannonExpansion(e: Expression, v: BigInt) = {
+    Disjunction(Conjunction(Negation(Variable(v)), restrictExpression(e, v, Bottom)), Conjunction(Variable(v), restrictExpression(e, v, Top)))
+  }
+  
+  //TODO prove
+  def shannonExpansionEquivalence(b: BDD, e: Expression, v: BigInt) = {
+    build(b, e).root == build(b, shannonExpansion(e, v)).root
+  } holds
+  
+  def represents(b: BDD, root: BigInt, e: Expression) : Boolean = {
+    build(b, e).root == root
+  }
+  
+  //TODO prove
+  def restrictRepresentsChildren(b: BDD, root: BigInt, e: Expression) = {
+    require(represents(b, root, e))
+    represents(b, getNode(b, root).low, restrictExpression(e, getNode(b, root).variable, Bottom)) &&
+    represents(b, getNode(b, root).high, restrictExpression(e, getNode(b, root).variable, Bottom))
+  } holds
+  
   def union(b: BDD, r1: BigInt, r2: BigInt) = apply(b, _ || _, r1, r2)
   def intersect(b: BDD, r1: BigInt, r2: BigInt) = apply(b, _ && _, r1, r2)
 
