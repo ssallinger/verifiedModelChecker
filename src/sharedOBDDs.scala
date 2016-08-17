@@ -60,6 +60,7 @@ object sharedOBDDs {
   
   //look for node and create it if it does not exist
   def testAndInsert(b: BDD, n: Node): RootedBDD = {
+    //TODO require that node is nonterminal
     if (n.low == n.high)
       RootedBDD(b, n.low)
     else if (b.H.contains(n))
@@ -85,7 +86,7 @@ object sharedOBDDs {
   }
   
   
-  //restricts Expression by replacing variable with id i by value (should be Top or Bottom) and simplifying
+  //restricts Expression by replacing variable with id i by value (should be Top or Bottom) and simplifying (<- not neccessary, remove?)
   def restrictExpression(e: Expression, i: BigInt, value: Expression): Expression = {
   	require(isConstant(value))
     e match {
@@ -216,7 +217,7 @@ object sharedOBDDs {
   def correctApplyOr(b: BDD, f: Expression, g: Expression, rf: BigInt, rg: BigInt) : Boolean = {
     require(represents(b, rf, f) && represents(b, rg, g))
     val res = apply(b, _ || _, rf, rg)
-    represents(res.b, res.root, Conjunction(f, g)) because {
+    represents(res.b, res.root, Disjunction(f, g)) because {
       if((rf == 0 || rf == 1) && (rg == 0 || rg == 1))
         trivial
       else if (getNode(b, rf).variable == getNode(b, rg).variable) {
@@ -234,8 +235,8 @@ object sharedOBDDs {
                        getNode(b, rf).high,
                        getNode(b, rg).high) &&
         shannonExpansionEquivalence(b, f, v) &&
-        represents(res.b, res.root, shannonExpansion(f, v)) //&&
-        //testand insert of node repr. shannon expansion
+        represents(res.b, res.root, shannonExpansion(Disjunction(f, g) , v))
+        //TODO establish correspondance between testAndInsert(bHigh, v, rLow, rHigh)) and shannon expansion
                        
       }
       else trivial//TODO
@@ -246,7 +247,9 @@ object sharedOBDDs {
     Disjunction(Conjunction(Negation(Variable(v)), restrictExpression(e, v, Bottom)), Conjunction(Variable(v), restrictExpression(e, v, Top)))
   }
   
-  //TODO prove
+  //TODO prove:
+  //1) expression is equivalent to its shannon expansion
+  //2) if 2 expressions are equivalent, then they are represented by the same bdd
   def shannonExpansionEquivalence(b: BDD, e: Expression, v: BigInt) = {
     build(b, e).root == build(b, shannonExpansion(e, v)).root
   } holds
@@ -261,6 +264,7 @@ object sharedOBDDs {
     represents(b, getNode(b, root).low, restrictExpression(e, getNode(b, root).variable, Bottom)) &&
     represents(b, getNode(b, root).high, restrictExpression(e, getNode(b, root).variable, Bottom))
   } holds
+  
   
   def union(b: BDD, r1: BigInt, r2: BigInt) = apply(b, _ || _, r1, r2)
   def intersect(b: BDD, r1: BigInt, r2: BigInt) = apply(b, _ && _, r1, r2)
