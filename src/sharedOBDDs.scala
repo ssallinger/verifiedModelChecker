@@ -3,10 +3,13 @@ import leon.lang._
 import leon.annotation._
 import leon.proof._
 
+import scala.language.postfixOps
+
 object sharedOBDDs {
 
   case class Node(variable: BigInt, low: BigInt, high: BigInt)
-  case class BDD(nodes: List[BigInt], T: Map[BigInt, Node], H: Map[Node, BigInt], size: BigInt)
+  case class BDD(nodes: List[BigInt], T: Map[BigInt, Node], H: Map[Node, BigInt], size: BigInt) {
+  }
   case class RootedBDD(b: BDD, root: BigInt)
 
   abstract class Expression
@@ -16,6 +19,22 @@ object sharedOBDDs {
   case class Negation(e: Expression) extends Expression
   case class Conjunction(e1: Expression, e2: Expression) extends Expression
   case class Disjunction(e1: Expression, e2: Expression) extends Expression
+ 
+ 
+  def definedSmaller2(b: BDD): (BigInt => Boolean) = {
+    (i: BigInt) => (b.T.contains(i) ==> i < b.size)
+  }
+ 
+  def definedSmaller(b: BDD): Boolean = {
+    forall ((i: BigInt) => definedSmaller2(b)(i))
+  }
+  
+  
+  def instantiation(p: BigInt => Boolean, j: BigInt) = {
+    require(forall((i: BigInt) => p(i)))
+    
+    p(j)
+  } holds
  
   //create new Table containing the terminal nodes (ID 0 and 1)
   def initT(numberOfVars: BigInt): Map[BigInt, Node] = {
@@ -43,15 +62,15 @@ object sharedOBDDs {
     BDD(b.size :: b.nodes, b.T.updated(b.size, n), b.H.updated(n, b.size), b.size + 1)
   }
   
-  //add preserves wellformedness
-  def wellFormedAdd(b: BDD, n: Node): Boolean = {
-    require(wellFormed(b.nodes,b.T))
-    
-    val res = add(b, n)
-    b.nodes.content.subsetOf(res.nodes.content) &&
-    wellFormedUpdate(b.nodes, b.T, b.size, n) &&
-    wellFormed(res.nodes, res.T)
-  } holds
+//   //add preserves wellformedness
+//   def wellFormedAdd(b: BDD, n: Node): Boolean = {
+//     require(wellFormed(b.nodes,b.T))
+//     
+//     val res = add(b, n)
+//     b.nodes.content.subsetOf(res.nodes.content) &&
+//     wellFormedUpdate(b.nodes, b.T, b.size, n) &&
+//     wellFormed(res.nodes, res.T)
+//   } holds
   
   def getNode(b: BDD, id: BigInt): Node = {
     require(b.T.contains(id))
@@ -70,14 +89,14 @@ object sharedOBDDs {
     }
   }
   
-  def wellFormedTestAndInsert(b: BDD, n: Node) : Boolean = {
-    require(wellFormed(b.nodes, b.T))
-    
-    val res = testAndInsert(b, n)
-    b.nodes.content.subsetOf(res.b.nodes.content) &&
-    wellFormedAdd(b, n) &&
-    wellFormed(res.b.nodes, res.b.T)
-  } holds
+//   def wellFormedTestAndInsert(b: BDD, n: Node) : Boolean = {
+//     require(wellFormed(b.nodes, b.T))
+//     
+//     val res = testAndInsert(b, n)
+//     b.nodes.content.subsetOf(res.b.nodes.content) &&
+//     wellFormedAdd(b, n) &&
+//     wellFormed(res.b.nodes, res.b.T)
+//   } holds
 
   def isConstant(e: Expression) : Boolean = e match {
     case Top => true
@@ -132,42 +151,81 @@ object sharedOBDDs {
   }
 
   def build(b: BDD, e: Expression): RootedBDD = {
-    val n = maxVarLabel(e)
+    
     def buildRec(b1: BDD, e: Expression, i: BigInt): RootedBDD = {
-//       require(e == restrictExpression(
-      if (i > n) {
-        e match { // no more variables -> only constants possible
-          case Top  => RootedBDD(b1, 1)
-          case Bottom => RootedBDD(b1, 0)
-        }
-      } else {
-        val RootedBDD(bdd1, r1) = buildRec(b1, restrictExpression(e, i, Bottom), i + 1)
-        val RootedBDD(bdd2, r2) = buildRec(bdd1, restrictExpression(e, i, Top), i + 1)
-        testAndInsert(bdd2, Node(i, r1, r2))
+//       require {
+//         minVarLabel(e) match {
+//           case None() => true
+//           case Some(j) => j >= i
+//         }
+//       }
+      
+      e match { // no more variables -> only constants possible
+        case Top  => RootedBDD(b1, 1)
+        case Bottom => RootedBDD(b1, 0)
+        case _ => 
+          val RootedBDD(bdd1, r1) = buildRec(b1, restrictExpression(e, i, Bottom), i + 1)
+          val RootedBDD(bdd2, r2) = buildRec(bdd1, restrictExpression(e, i, Top), i + 1)
+          testAndInsert(bdd2, Node(i, r1, r2))
       }
     }
 
     buildRec(b, e, 1)
   }
-
-  def maxVarLabel(e: Expression): BigInt = {
-    e match {
-      case Top          => 0
-      case Bottom       => 0
-      case Variable(i)  => i
-      case Negation(e1) => maxVarLabel(e1)
-      case Conjunction(e1, e2) => {
-        val max1 = maxVarLabel(e1)
-        val max2 = maxVarLabel(e2)
-        if(max1 > max2) max1 else max2
-      }
-      case Disjunction(e1, e2) => {
-        val max1 = maxVarLabel(e1)
-        val max2 = maxVarLabel(e2)
-        if(max1 > max2) max1 else max2
-      }
-    }
-  }
+  
+//   def maxVarLabel(e: Expression): Option[BigInt] = {
+//     e match {
+//       case Top          => None()
+//       case Bottom       => None()
+//       case Variable(i)  => i
+//       case Negation(e1) => maxVarLabel(e1)
+//       case Conjunction(e1, e2) => {
+//         val max1 = maxVarLabel(e1)
+//         val max2 = maxVarLabel(e2)
+//         (max1,max2) match {
+//           case (None(),_) => max2
+//           case (_,None()) => max1
+//           case (Some(x1),Some(x2)) =>
+//             if(x1 > x2) x1 else x2
+//       }
+//       case Disjunction(e1, e2) => {
+//         val max1 = maxVarLabel(e1)
+//         val max2 = maxVarLabel(e2)
+//         (max1,max2) match {
+//           case (None(),_) => max2
+//           case (_,None()) => max1
+//           case (Some(x1),Some(x2)) =>
+//             if(x1 > x2) x1 else x2
+//       }
+//     }
+//   }
+// 
+//   def minVarLabel(e: Expression): Option[BigInt] = {
+//     e match {
+//       case Top          => None()
+//       case Bottom       => None()
+//       case Variable(i)  => i
+//       case Negation(e1) => maxVarLabel(e1)
+//       case Conjunction(e1, e2) => {
+//         val min1 = minVarLabel(e1)
+//         val min2 = minVarLabel(e2)
+//         (min1,min2) match {
+//           case (None(),_) => min2
+//           case (_,None()) => min1
+//           case (Some(x1),Some(x2)) =>
+//             if(x1 < x2) x1 else x2
+//       }
+//       case Disjunction(e1, e2) => {
+//         val min1 = minVarLabel(e1)
+//         val min2 = minVarLabel(e2)
+//         (min1,min2) match {
+//           case (None(),_) => min2
+//           case (_,None()) => min1
+//           case (Some(x1),Some(x2)) =>
+//             if(x1 < x2) x1 else x2
+//       }
+//     }
+//   }
   
   def containsAllChildren(b: BDD, r: BigInt): Boolean = {
     b.T.contains(r) &&
@@ -175,14 +233,88 @@ object sharedOBDDs {
     containsAllChildren(b, getNode(b,r).high) 
   }
   
-  def allChildrenInSet(b: BDD, r: BigInt, s: List[BigInt]): Boolean = {
-    s.contains(r) &&
-    allChildrenInSet(b, getNode(b,r).low, s) &&
-    allChildrenInSet(b, getNode(b,r).high, s) 
-  }
+  
+  
+  def sameChildrenAdd(b: BDD, n: Node, r: BigInt): Boolean = {
+    require(/*containsAllChildren(b,r) && */definedSmaller(b))
+    
+//     val bdd = add(b,n)
+    
+    instantiation(definedSmaller2(b), b.size) && 
+    definedSmaller2(b)(b.size)
+//     !b.T.contains(b.size)
+//     sameChildrenAdd(b, n, getNode(b,r).low) && 
+//     sameChildrenAdd(b, n, getNode(b,r).high) &&
+//     containsAllChildren(bdd,r)
+  } holds
+  
+  def sameChildrenTAI(b: BDD, n: Node, r: BigInt) = {
+    require(containsAllChildren(b,r))
+    
+    val RootedBDD(bdd,root) = testAndInsert(b,n)
+    
+    containsAllChildren(bdd,r)
+  } holds
+  
+  
+  def sameChildrenApply(b: BDD, op: (Boolean, Boolean) => Boolean, r1: BigInt, r2: BigInt, r: BigInt): Boolean = {
+    require(containsAllChildren(b,r) && containsAllChildren(b,r1) && containsAllChildren(b,r2))
+  
+    val RootedBDD(bdd,root) = apply(b, op, r1, r2)
+    
+    
+  
+    if ((r1 == 0 || r1 == 1) && (r2 == 0 || r2 == 1)) //two Terminals
+      containsAllChildren(bdd,r)
+    else if (getNode(b, r1).variable == getNode(b, r2).variable) {
+    
+      if (
+        sameChildrenApply(b, op, getNode(b, r1).low, getNode(b, r2).low, r1) &&
+        sameChildrenApply(b, op, getNode(b, r1).low, getNode(b, r2).low, r2) 
+      ) {
+        val RootedBDD(bLow, rLow) = apply(b, op, getNode(b, r1).low, getNode(b, r2).low)
+        val RootedBDD(bHigh, rHigh) = apply(bLow, op, getNode(bLow, r1).high, getNode(bLow, r2).high)
+//       RootedBDD(bLow,rHigh)
+//       testAndInsert(bHigh, Node(getNode(b, r1).variable, rLow, rHigh))
+
+        sameChildrenApply(b, op, getNode(b, r1).low, getNode(b, r2).low, r) &&
+        sameChildrenApply(bLow, op, getNode(bLow, r1).high, getNode(bLow, r2).high, r) &&
+        containsAllChildren(bLow,r) &&
+        containsAllChildren(bHigh,r) &&
+        containsAllChildren(bdd,r)
+      }
+      else false
+    } 
+    else 
+      containsAllChildren(bdd,r)
+//     else if (getNode(b, r1).variable < getNode(b, r2).variable) {
+//       val RootedBDD(bLow, rLow) = apply(b, op, getNode(b, r1).low, r2)
+//       val RootedBDD(bHigh, rHigh) = apply(bLow, op, getNode(bLow, r1).high, r2)
+//       testAndInsert(bHigh, Node(getNode(b, r1).variable, rLow, rHigh))
+//     } else {
+//       val RootedBDD(bLow, rLow) = apply(b, op, r1, getNode(b, r2).low)
+//       val RootedBDD(bHigh, rHigh) = apply(bLow, op, r1, getNode(bLow, r2).high)
+//       testAndInsert(bHigh, Node(getNode(b, r2).variable, rLow, rHigh))
+//     }
+    
+    /*
+    containsAllChildren(bdd,r)*/
+  } holds
+  
+  
+//   def allChildrenInSet(b: BDD, r: BigInt, s: List[BigInt]): Boolean = {
+//     s.contains(r) &&
+//     allChildrenInSet(b, getNode(b,r).low, s) &&
+//     allChildrenInSet(b, getNode(b,r).high, s) 
+//   }
+  
   
   def apply(b: BDD, op: (Boolean, Boolean) => Boolean, r1: BigInt, r2: BigInt): RootedBDD = {
-    //require(containsAllChildren(b, r1) && containsAllChildren(b, r2) && wellFormed(b.nodes, b.T))
+    require(
+      containsAllChildren(b, r1) && 
+      containsAllChildren(b, r2) 
+    )
+//     && wellFormed(b.nodes, b.T))
   
     if ((r1 == 0 || r1 == 1) && (r2 == 0 || r2 == 1)) //two Terminals
       if (op(r1 == 1, r2 == 1)) RootedBDD(b, BigInt(1)) 
@@ -190,25 +322,22 @@ object sharedOBDDs {
     else if (getNode(b, r1).variable == getNode(b, r2).variable) {
       val RootedBDD(bLow, rLow) = apply(b, op, getNode(b, r1).low, getNode(b, r2).low)
       // b.nodes subset of loApp.nodes
-      val RootedBDD(bHigh, rHigh) = apply(bLow, op, getNode(b, r1).high, getNode(b, r2).high)
+      val RootedBDD(bHigh, rHigh) = apply(bLow, op, getNode(bLow, r1).high, getNode(bLow, r2).high)
+//       RootedBDD(bHigh,rHigh)
       testAndInsert(bHigh, Node(getNode(b, r1).variable, rLow, rHigh))
     } 
-//     else (b,r1)
-    else if (getNode(b, r1).variable < getNode(b, r2).variable) {
-      val RootedBDD(bLow, rLow) = apply(b, op, getNode(b, r1).low, r2)
-      val RootedBDD(bHigh, rHigh) = apply(bLow, op, getNode(b, r1).high, r2)
-      testAndInsert(bHigh, Node(getNode(b, r1).variable, rLow, rHigh))
-    } else {
-      val RootedBDD(bLow, rLow) = apply(b, op, r1, getNode(b, r2).low)
-      val RootedBDD(bHigh, rHigh) = apply(bLow, op, r1, getNode(b, r2).high)
-      testAndInsert(bHigh, Node(getNode(b, r2).variable, rLow, rHigh))
-    }
+    else RootedBDD(b,r1)
+//     else if (getNode(b, r1).variable < getNode(b, r2).variable) {
+//       val RootedBDD(bLow, rLow) = apply(b, op, getNode(b, r1).low, r2)
+//       val RootedBDD(bHigh, rHigh) = apply(bLow, op, getNode(bLow, r1).high, r2)
+//       testAndInsert(bHigh, Node(getNode(b, r1).variable, rLow, rHigh))
+//     } else {
+//       val RootedBDD(bLow, rLow) = apply(b, op, r1, getNode(b, r2).low)
+//       val RootedBDD(bHigh, rHigh) = apply(bLow, op, r1, getNode(bLow, r2).high)
+//       testAndInsert(bHigh, Node(getNode(b, r2).variable, rLow, rHigh))
+//     }
 
-  } /*ensuring ((res: RootedBDD) => {
-    val RootedBDD(bdd,r) = res
-    b.nodes.content.subsetOf(bdd.nodes.content) &&
-    wellFormed(bdd.nodes, bdd.T)
-  })*/
+  } 
 //     containsAllChildren(bdd,r) &&
 //     bdd.wellFormed()
 //   })
@@ -217,31 +346,85 @@ object sharedOBDDs {
   def correctApplyOr(b: BDD, f: Expression, g: Expression, rf: BigInt, rg: BigInt) : Boolean = {
     require(represents(b, rf, f) && represents(b, rg, g))
     val res = apply(b, _ || _, rf, rg)
-    represents(res.b, res.root, Disjunction(f, g)) because {
-      if((rf == 0 || rf == 1) && (rg == 0 || rg == 1))
-        trivial
-      else if (getNode(b, rf).variable == getNode(b, rg).variable) {
-        val v = getNode(b, rf).variable
-        restrictRepresentsChildren(b, rf, f) && //for precondition of I.H.
-        restrictRepresentsChildren(b, rg, g) &&
-        correctApplyOr(b, //I.H.
-                       restrictExpression(f, v, Bottom),
-                       restrictExpression(g, v, Bottom),
-                       getNode(b, rf).low,
-                       getNode(b, rg).low) &&
-        correctApplyOr(b,//I.H.
-                       restrictExpression(f, v, Top),
-                       restrictExpression(g, v, Top),
-                       getNode(b, rf).high,
-                       getNode(b, rg).high) &&
-        shannonExpansionEquivalence(b, f, v) &&
-        represents(res.b, res.root, shannonExpansion(Disjunction(f, g) , v))
-        //TODO establish correspondance between testAndInsert(bHigh, v, rLow, rHigh)) and shannon expansion
-                       
-      }
-      else trivial//TODO
+    
+    if((rf == 0 || rf == 1) && (rg == 0 || rg == 1))
+      trivial
+    else if (getNode(b, rf).variable == getNode(b, rg).variable) {
+      val v = getNode(b, rf).variable
+      restrictRepresentsChildren(b, rf, f) && //for precondition of I.H.
+      restrictRepresentsChildren(b, rg, g) &&
+//       correctApplyOr(b, //I.H.
+//                       restrictExpression(f, v, Bottom),
+//                       restrictExpression(g, v, Bottom),
+//                       getNode(b, rf).low,
+//                       getNode(b, rg).low) &&
+//       correctApplyOr(b,//I.H.
+//                       restrictExpression(f, v, Top),
+//                       restrictExpression(g, v, Top),
+//                       getNode(b, rf).high,
+//                       getNode(b, rg).high) &&
+//       shannonExpansionEquivalence(b, f, v) &&
+//       represents(res.b, res.root, shannonExpansion(Disjunction(f, g) , v)) &&
+      true
+      //TODO establish correspondance between testAndInsert(bHigh, v, rLow, rHigh)) and shannon expansion
+//         represents(res.b, res.root, Disjunction(f, g))
     }
+    else 
+      trivial//TODO
   } holds
+  
+
+//   //TODO prove
+//   def correctApplyOrSet(b: BDD, root1: BigInt, root2: BigInt) : Boolean = {
+//   
+//     val res = apply(b, _ || _, root1, root2)
+//     
+//     if((root1 == 0 || root1 == 1) && (root2 == 0 || root2 == 1))
+//       trivial
+//     else if (getNode(b, root1).variable == getNode(b, root2).variable) {
+//       val v = getNode(b, root1).variable
+//       
+//       val rbLow = apply(b,  _ || _, getNode(b, root1).low, getNode(b, root2).low)
+//       val RootedBDD(bLow, rLow) = rbLow
+//       
+//       val rbHigh = apply(bLow,  _ || _, getNode(bLow, root1).high, getNode(bLow, root2).high)
+//       val RootedBDD(bHigh, rHigh) = rbHigh
+//       
+//       correctApplyOrSet(b, getNode(b, root1).low, getNode(b, root2).low) && 
+//       (contentLists(rbLow) == contentLists(RootedBDD(b, getNode(b, root1).low)) ++ contentLists(RootedBDD(b, getNode(b, root2).low))) &&
+//       correctApplyOrSet(bLow, getNode(bLow, root1).high, getNode(bLow, root2).high) && 
+//       (contentLists(rbHigh) == contentLists(RootedBDD(bLow, getNode(bLow, root1).high)) ++ contentLists(RootedBDD(bLow, getNode(bLow, root2).high))) &&
+//       res = testAndInsert(bHigh, Node(getNode(b, root1).variable, rLow, rHigh))
+// 
+// 
+// // true
+//       
+//       
+//       (contentLists(res) == contentLists(RootedBDD(b, root1)) ++ contentLists(RootedBDD(b, root2)))
+//       
+//       
+// //       restrictRepresentsChildren(b, rf, f) && //for precondition of I.H.
+// //       restrictRepresentsChildren(b, rg, g) &&
+// //       (contentLists(res) == contentLists(RootedBDD(b, root1)) ++ contentLists(RootedBDD(b, root2)))
+// //       correctApplyOr(b, //I.H.
+// //                       restrictExpression(f, v, Bottom),
+// //                       restrictExpression(g, v, Bottom),
+// //                       getNode(b, rf).low,
+// //                       getNode(b, rg).low) &&
+// //       correctApplyOr(b,//I.H.
+// //                       restrictExpression(f, v, Top),
+// //                       restrictExpression(g, v, Top),
+// //                       getNode(b, rf).high,
+// //                       getNode(b, rg).high) &&
+// //       shannonExpansionEquivalence(b, f, v) &&
+// //       represents(res.b, res.root, shannonExpansion(Disjunction(f, g) , v)) &&
+// //       true
+//       //TODO establish correspondance between testAndInsert(bHigh, v, rLow, rHigh)) and shannon expansion
+// //         represents(res.b, res.root, Disjunction(f, g))
+//     }
+//     else 
+//       trivial//TODO
+//   } holds
   
   def shannonExpansion(e: Expression, v: BigInt) = {
     Disjunction(Conjunction(Negation(Variable(v)), restrictExpression(e, v, Bottom)), Conjunction(Variable(v), restrictExpression(e, v, Top)))
@@ -346,32 +529,43 @@ object sharedOBDDs {
       extend(setToList(s).map(l => false::l).content ++ setToList(s).map(l => true::l).content, i - 1)
   }
   
-  def contentLists(bdd: RootedBDD) : Set[List[Boolean]] = {
-    if(bdd.root == 0)
+  def contentLists(bdd: RootedBDD, v: BigInt) : Set[List[Boolean]] = {
+    require {
+      val RootedBDD(b,root) = bdd 
+      v <= getNode(b,root).variable
+    }
+    val RootedBDD(b,root) = bdd 
+    if(root == 0)
       Set()
-    else if(bdd.root == 1)
+    else if(root == 1)
       Set(List[Boolean]())
-    else {
-      val lo = if(getNode(bdd.b, bdd.root).variable - getNode(bdd.b, getNode(bdd.b, bdd.root).low).variable == 1)
+    else if (getNode(b,root).variable == v) {
+      val lo = contentLists(RootedBDD(b, getNode(b, root).low), v+1)
+      val hi = contentLists(RootedBDD(b, getNode(b, root).high), v+1)
+      setToList(lo).map(l => false::l).content ++ setToList(hi).map(l => true::l).content
+    } else
+      extend(contentLists(bdd, v+1), 1)
+/*    
+      val lo = if(getNode(bdd.b, getNode(bdd.b, bdd.root).low).variable - getNode(bdd.b, bdd.root).variable == 1)
                  contentLists(RootedBDD(bdd.b, getNode(bdd.b, bdd.root).low))
                else
                  extend(contentLists(RootedBDD(bdd.b, getNode(bdd.b, bdd.root).low)),
-                   getNode(bdd.b, bdd.root).variable - getNode(bdd.b, getNode(bdd.b, bdd.root).low).variable - 1)
-      val hi = if(getNode(bdd.b, bdd.root).variable - getNode(bdd.b, getNode(bdd.b, bdd.root).high).variable == 1)
+                   getNode(bdd.b, getNode(bdd.b, bdd.root).low).variable - getNode(bdd.b, bdd.root).variable - 1)
+      val hi = if(getNode(bdd.b, getNode(bdd.b, bdd.root).high).variable - getNode(bdd.b, bdd.root).variable == 1)
                  contentLists(RootedBDD(bdd.b, getNode(bdd.b, bdd.root).high))
                else
                  extend(contentLists(RootedBDD(bdd.b, getNode(bdd.b, bdd.root).high)),
-                   getNode(bdd.b, bdd.root).variable - getNode(bdd.b, getNode(bdd.b, bdd.root).high).variable - 1)
+                   getNode(bdd.b, getNode(bdd.b, bdd.root).high).variable - getNode(bdd.b, bdd.root).variable - 1)
       setToList(lo).map(l => false::l).content ++ setToList(hi).map(l => true::l).content
-    }
+    }*/
   }
   
   /*def content(b: BDD, root: BigInt) : Set[State] = {
     setToList(contentLists(b, root)).map(l => State(l)).content
   }*/
   
-  def correctUnion(b: BDD, root1: BigInt, root2: BigInt) : Boolean = {
-  	val bddUnion = union(b, root1, root2)
-  	(contentLists(bddUnion) == contentLists(RootedBDD(b, root1)) ++ contentLists(RootedBDD(b, root2)))
-  } holds
+//   def correctUnion(b: BDD, root1: BigInt, root2: BigInt) : Boolean = {
+//   	val bddUnion = union(b, root1, root2)
+//   	(contentLists(bddUnion) == contentLists(RootedBDD(b, root1)) ++ contentLists(RootedBDD(b, root2)))
+//   } holds
 }
