@@ -13,12 +13,12 @@ object CTL {
   case object False extends Formula
   case class Prop(a: Atom) extends Formula
   case class And(f1: Formula, f2: Formula) extends Formula
-  case class Not(f: Formula) extends Formula
-  case class Or(f1: Formula, f2: Formula) extends Formula
-  case class Implies(f1: Formula, f2: Formula) extends Formula
-  case class EX(f: Formula) extends Formula
-  case class EG(f: Formula) extends Formula
-  case class EU(f1: Formula, f2: Formula) extends Formula
+//   case class Not(f: Formula) extends Formula
+//   case class Or(f1: Formula, f2: Formula) extends Formula
+//   case class Implies(f1: Formula, f2: Formula) extends Formula
+//   case class EX(f: Formula) extends Formula
+//   case class EG(f: Formula) extends Formula
+//   case class EU(f1: Formula, f2: Formula) extends Formula
   /*
   case class AX(f: Formula) extends Formula
   case class AU(f1: Formula, f2: Formula) extends Formula
@@ -28,7 +28,7 @@ object CTL {
   */
   case class State(atoms: Set[Atom])
   
-  case class Automaton(tr: List[(State,State)]) 
+  case class Automaton(states: List[State], tr: List[(State,State)]) 
   
   
   def post(s: State, tr: List[(State,State)]): List[State] = {
@@ -63,10 +63,12 @@ object CTL {
   
   def valid(a: Automaton, s: State, f: Formula): Boolean = {
     f match {
+      case True => true
+      case False => false
       case Prop(a) => s.atoms.contains(a)
       case And(f1,f2) => valid(a, s, f1) && valid(a, s, f2)
-      case EG(g) => valid(a, s, g) && canLoop(a, List(s), g)
-      case _ => true
+//       case EG(g) => valid(a, s, g) && canLoop(a, List(s), g)
+//       case _ => true
     } 
   }
   
