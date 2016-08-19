@@ -13,8 +13,8 @@ object CTL {
   case object False extends Formula
   case class Prop(a: Atom) extends Formula
   case class And(f1: Formula, f2: Formula) extends Formula
-//   case class Not(f: Formula) extends Formula
-//   case class Or(f1: Formula, f2: Formula) extends Formula
+  /*case class Not(f: Formula) extends Formula
+  case class Or(f1: Formula, f2: Formula) extends Formula*/
 //   case class Implies(f1: Formula, f2: Formula) extends Formula
 //   case class EX(f: Formula) extends Formula
 //   case class EG(f: Formula) extends Formula
@@ -67,6 +67,8 @@ object CTL {
       case False => false
       case Prop(a) => s.atoms.contains(a)
       case And(f1,f2) => valid(a, s, f1) && valid(a, s, f2)
+      /*case Or(f1,f2) => valid(a, s, f1) || valid(a, s, f2)
+      case Not(f1) => !valid(a, s, f1)*/
 //       case EG(g) => valid(a, s, g) && canLoop(a, List(s), g)
 //       case _ => true
     } 

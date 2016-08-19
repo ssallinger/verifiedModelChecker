@@ -14,9 +14,15 @@ object ModelChecker {
     
     l.filter(p).contains(e)
   } holds
+  
+  /*@induct
+  def filterRemovesElements[T](l: List[T], e: T, p: T => Boolean) = {
+    require(!p(e))
+    
+    !l.filter(p).contains(e)
+  } holds*/
 
-
-   def sat(a: Automaton, f: Formula): Set[State] = {
+  def sat(a: Automaton, f: Formula): Set[State] = {
     f match {
       case True    => a.states.content
       case False   => Set()
@@ -25,7 +31,12 @@ object ModelChecker {
         val b1 = sat(a, f1)
         val b2 = sat(a, f2)
         b1 & b2
-      
+      /*case Or(f1, f2) =>
+        val b1 = sat(a, f1)
+        val b2 = sat(a, f2)
+        b1 ++ b2
+      case Not(f1) => a.states.content -- sat(a, f1)*/
+
       
 //         build(states.b, Variable(atom.i))
 //       }
@@ -56,7 +67,7 @@ object ModelChecker {
   }
   
   def validToSat(a: Automaton, s: State, f: Formula): Boolean = {
-    require(a.states.contains(s) && valid(a,s,f))
+    require(a.states.contains(s) && valid(a, s, f))
     
     f match {
       case True => sat(a,f).contains(s)
@@ -68,7 +79,24 @@ object ModelChecker {
         validToSat(a, s, f1) &&
         validToSat(a, s, f2) && 
         sat(a,f).contains(s)
+      /*case Or(f1, f2) => 
+        ((valid(a,s,f1) && validToSat(a, s, f1)) ||
+        (valid(a,s,f2) && validToSat(a, s, f2))) &&        
+        sat(a,f).contains(s)
+      case Not(f1) => 
+        !valid(a, s, f1) &&
+        //!(sat(a, f1).contains(s)) &&
+        satToValid(a, s, f1) &&
+        sat(a,f).contains(s)*/
     }
+  } holds
+  
+  @library
+  def satToValid(a: Automaton, s: State, f: Formula): Boolean = {
+    require(a.states.contains(s) && !valid(a, s, f))
+  
+    !sat(a, f).contains(s)
+    
   } holds
   
   //EG, EU, EX form minimal adequate subset of temporal connectives
@@ -78,4 +106,3 @@ object ModelChecker {
 //   def sateg(states: RootedBDD, transitions: RootedBDD, f: Formula): RootedBDD = states //see Isabelle tutorial
 
 }
-
