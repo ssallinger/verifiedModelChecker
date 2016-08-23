@@ -20,7 +20,7 @@ object sharedOBDDs {
   case class Conjunction(e1: Expression, e2: Expression) extends Expression
   case class Disjunction(e1: Expression, e2: Expression) extends Expression
  
- 
+  // all nodes in b have an ID smaller than the size
   def definedSmaller2(b: BDD): (BigInt => Boolean) = {
     (i: BigInt) => (b.T.contains(i) ==> i < b.size)
   }
@@ -495,9 +495,14 @@ object sharedOBDDs {
     val RootedBDD(b1, r1)  = restrict(RootedBDD(b0, bdd.root), consideredVar, true)
     apply(b1, _ || _, r0, r1)
   }
+  
+  def existsList(bdd: RootedBDD, consideredVars: List[BigInt]) : RootedBDD = consideredVars match {
+    case Nil() => bdd
+    case x::xs => existsList(exists(bdd, x), xs)
+  }
 
   //precond: lists nonempty + same size
-  def rename(bdd: RootedBDD, oldNames: List[BigInt], newNames: List[BigInt]): RootedBDD = {
+  /*def rename(bdd: RootedBDD, oldNames: List[BigInt], newNames: List[BigInt]): RootedBDD = {
     if (bdd.root == 0 || bdd.root == 1)
       bdd
     else {
@@ -509,18 +514,54 @@ object sharedOBDDs {
 
       testAndInsert(bHigh, Node(name, rLow, rHigh))
     }
+  }*/
+  
+  def unprime(bdd: RootedBDD) : RootedBDD = {
+    if (bdd.root == 0 || bdd.root == 1)
+      bdd
+    else {
+      val RootedBDD(bLow, rLow) = unprime(RootedBDD(bdd.b, getNode(bdd.b, bdd.root).low))
+      val RootedBDD(bHigh, rHigh) = unprime(RootedBDD(bLow, getNode(bdd.b, bdd.root).high))
+      
+      
+      val name = if (getNode(bdd.b, bdd.root).variable % 2 == 1) //primed
+                   getNode(bdd.b, bdd.root).variable - 1
+                 else //unprimed
+                   getNode(bdd.b, bdd.root).variable
+
+      testAndInsert(bHigh, Node(name, rLow, rHigh))
+    }
+  }
+
+  def post(b: BDD, states: BigInt, transitions: BigInt) : RootedBDD = {
+    //set of transitions originating in "states"
+    val relevantTransitions = intersect(b, states, transitions)
+    
+    //keep only targets -> call exists for all variables in "states"
+    val targets = existsList(relevantTransitions, variables(b, states).unique)
+    
+    //rename variables to their unprimed versions
+    unprime(targets)
+  }
+  
+  //get list of all variables in a bdd in nodes reachable from specified root
+  def variables(b: BDD, root: BigInt) : List[BigInt] = {
+    if(root == 0 || root == 1)
+      List()
+    else
+      getNode(b, root).variable :: variables(b, getNode(b, root).low) ++ variables(b, getNode(b, root).high)
   }
 
   //TODO implement
-  def preE(statesSubset: RootedBDD, transitions: RootedBDD): RootedBDD = statesSubset
-    //val bPrimed = rename(b, )//TODO this is inefficient -> unprimed and primed variables should be interleaved
+  /*def preE(statesSubset: RootedBDD, transitions: RootedBDD): RootedBDD = statesSubset
+    //val bPrimed = rename(b, )//TODO this is inefficient -> unprimed and primed variables should be interleaved*/
   
 
-  def preA(states: RootedBDD, rootSubset: BigInt, transitions: RootedBDD): RootedBDD = {
+  /*def preA(states: RootedBDD, rootSubset: BigInt, transitions: RootedBDD): RootedBDD = {
     val complement = minus(states.b, states.root, rootSubset)
     val RootedBDD(bPreE, rPreE) = preE(complement, transitions)
     minus(bPreE, states.root, rPreE)
-  }
+  }*/
   
   def extend(s: Set[List[Boolean]], i: BigInt): Set[List[Boolean]] = {
     if(i == 0)
