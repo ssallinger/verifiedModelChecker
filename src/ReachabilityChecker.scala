@@ -24,13 +24,15 @@ object ReachabilityChecker {
     if(intersect(b, initialStates, targetStates).root != 0)
       true
     else {
-      val next = post(b, initialStates, transitions)
-      val reached = union(next.b, initialStates, next.root)
-      if(reached.root == initialStates) //fixed point
+      val successors = post(b, initialStates, transitions)
+      val next = union(successors.b, initialStates, successors.root)
+      if(next.root == initialStates) //fixed point
         false
       else
-        reachabilityCheck(reached.b, transitions, reached.root, targetStates)
+        reachabilityCheck(next.b, transitions, next.root, targetStates)
     }
   }
+  
+  
 
 }
