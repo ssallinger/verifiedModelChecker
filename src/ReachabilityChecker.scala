@@ -8,8 +8,19 @@ import scala.language.postfixOps
 import sharedOBDDs._
 
 object ReachabilityChecker {
+
+  case class Registers(values: List[Boolean])
   
-  def reachable(b: BDD, transitions: BigInt, initialStates: BigInt, targetStates: BigInt) : Boolean = {
+  case class State(registers: Registers)
+  
+  case class System(registers: Registers, circuit: Expression)
+  
+  def reachable(s: System, initial : Set[State], target : Set[State]) : Boolean = {
+    //???
+    false
+  }
+  
+  def reachabilityCheck(b: BDD, transitions: BigInt, initialStates: BigInt, targetStates: BigInt) : Boolean = {
     if(intersect(b, initialStates, targetStates).root != 0)
       true
     else {
@@ -18,7 +29,7 @@ object ReachabilityChecker {
       if(reached.root == initialStates) //fixed point
         false
       else
-        reachable(reached.b, transitions, reached.root, targetStates)
+        reachabilityCheck(reached.b, transitions, reached.root, targetStates)
     }
   }
 

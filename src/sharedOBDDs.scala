@@ -59,7 +59,7 @@ object sharedOBDDs {
   
   def add(b: BDD, n: Node): BDD = {
     //smarter allocation scheme for ids needed?
-    BDD(b.size :: b.nodes, b.T.updated(b.size, n), b.H.updated(n, b.size), b.size + 1)
+    BDD(b.size :: Nil(), b.T.updated(b.size, n), b.H.updated(n, b.size), b.size + 1)
   }
   
 //   //add preserves wellformedness
@@ -79,7 +79,7 @@ object sharedOBDDs {
   
   //look for node and create it if it does not exist
   def testAndInsert(b: BDD, n: Node): RootedBDD = {
-    //TODO require that node is nonterminal
+    //require(b.nodes.contains(n.low) && b.nodes.contains(n.high))
     if (n.low == n.high)
       RootedBDD(b, n.low)
     else if (b.H.contains(n))
@@ -87,7 +87,7 @@ object sharedOBDDs {
     else {
       RootedBDD(add(b, n), b.size) //adapt if allocation scheme for IDs changes!
     }
-  }
+  } //ensuring(res => res.b.nodes.contains(n.low) && res.b.nodes.contains(n.high))
   
 //   def wellFormedTestAndInsert(b: BDD, n: Node) : Boolean = {
 //     require(wellFormed(b.nodes, b.T))
@@ -153,14 +153,7 @@ object sharedOBDDs {
   def build(b: BDD, e: Expression): RootedBDD = {
     
     def buildRec(b1: BDD, e: Expression, i: BigInt): RootedBDD = {
-//       require {
-//         minVarLabel(e) match {
-//           case None() => true
-//           case Some(j) => j >= i
-//         }
-//       }
-      
-      e match { // no more variables -> only constants possible
+      e match {
         case Top  => RootedBDD(b1, 1)
         case Bottom => RootedBDD(b1, 0)
         case _ => 
@@ -173,79 +166,28 @@ object sharedOBDDs {
     buildRec(b, e, 1)
   }
   
-//   def maxVarLabel(e: Expression): Option[BigInt] = {
-//     e match {
-//       case Top          => None()
-//       case Bottom       => None()
-//       case Variable(i)  => i
-//       case Negation(e1) => maxVarLabel(e1)
-//       case Conjunction(e1, e2) => {
-//         val max1 = maxVarLabel(e1)
-//         val max2 = maxVarLabel(e2)
-//         (max1,max2) match {
-//           case (None(),_) => max2
-//           case (_,None()) => max1
-//           case (Some(x1),Some(x2)) =>
-//             if(x1 > x2) x1 else x2
-//       }
-//       case Disjunction(e1, e2) => {
-//         val max1 = maxVarLabel(e1)
-//         val max2 = maxVarLabel(e2)
-//         (max1,max2) match {
-//           case (None(),_) => max2
-//           case (_,None()) => max1
-//           case (Some(x1),Some(x2)) =>
-//             if(x1 > x2) x1 else x2
-//       }
-//     }
-//   }
-// 
-//   def minVarLabel(e: Expression): Option[BigInt] = {
-//     e match {
-//       case Top          => None()
-//       case Bottom       => None()
-//       case Variable(i)  => i
-//       case Negation(e1) => maxVarLabel(e1)
-//       case Conjunction(e1, e2) => {
-//         val min1 = minVarLabel(e1)
-//         val min2 = minVarLabel(e2)
-//         (min1,min2) match {
-//           case (None(),_) => min2
-//           case (_,None()) => min1
-//           case (Some(x1),Some(x2)) =>
-//             if(x1 < x2) x1 else x2
-//       }
-//       case Disjunction(e1, e2) => {
-//         val min1 = minVarLabel(e1)
-//         val min2 = minVarLabel(e2)
-//         (min1,min2) match {
-//           case (None(),_) => min2
-//           case (_,None()) => min1
-//           case (Some(x1),Some(x2)) =>
-//             if(x1 < x2) x1 else x2
-//       }
-//     }
-//   }
-  
   def containsAllChildren(b: BDD, r: BigInt): Boolean = {
     b.T.contains(r) &&
     containsAllChildren(b, getNode(b,r).low) &&
     containsAllChildren(b, getNode(b,r).high) 
   }
   
-  
-  
   def sameChildrenAdd(b: BDD, n: Node, r: BigInt): Boolean = {
-    require(/*containsAllChildren(b,r) && */definedSmaller(b))
+    require(containsAllChildren(b,r))
     
-//     val bdd = add(b,n)
+    val bdd = add(b,n)
     
-    instantiation(definedSmaller2(b), b.size) && 
-    definedSmaller2(b)(b.size)
-//     !b.T.contains(b.size)
-//     sameChildrenAdd(b, n, getNode(b,r).low) && 
-//     sameChildrenAdd(b, n, getNode(b,r).high) &&
-//     containsAllChildren(bdd,r)
+    //instantiation(definedSmaller2(b), b.size) && 
+    //definedSmaller2(b)(b.size)
+    //!b.T.contains(b.size)
+    sameChildrenAdd(b, n, getNode(b,r).low) && 
+    sameChildrenAdd(b, n, getNode(b,r).high) &&
+    containsAllChildren(bdd,r)
+  } holds
+  
+  def test(b: BDD, n: Node, r: BigInt) : Boolean = {
+    require(b.T.contains(r))
+    getNode(b, r) == getNode(add(b, n), r)
   } holds
   
   def sameChildrenTAI(b: BDD, n: Node, r: BigInt) = {
