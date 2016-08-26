@@ -17,20 +17,32 @@ object SetReachabilityChecker {
       reachable(s, i2 :: initial, target)))
   }
   
+  def reachableSet(s: System, initial: Set[State], x: Set[State]) : Set[State]  = { //parameter x not neccessary, just for clarity
+    val next = initial ++ post(s, x)
+    if((next subsetOf x) && (x subsetOf next)) //fixed point
+      x
+    else
+      reachableSet(s, initial, next)
+  }
   
   def reachabilityCheck(s: System, initial: Set[State], target: Set[State]) : Boolean = {
+    val reachable = reachableSet(s, initial, Set[State]())
+    (reachable & target) != Set[State]()
+  }
+  
+  /*def reachabilityCheck(s: System, initial: Set[State], target: Set[State]) : Boolean = {
     if((initial & target) != Set[State]())
       true
     else {
-      val n = next(s, initial) ++ initial
-      if((n subsetOf initial) && (initial subsetOf n))
+      val next = post(s, initial) ++ initial
+      if((next subsetOf initial) && (initial subsetOf next))
         false
       else
-        reachabilityCheck(s, n, target)
+        reachabilityCheck(s, next, target)
     }  
-  }
+  }*/
   
-  def next(s: System, states: Set[State]) : Set[State] = {
+  def post(s: System, states: Set[State]) : Set[State] = {
     //union over successors of all states
     setToList(states).map(st => successors(s.transitions, st).content).foldLeft(Set[State]())(_++_)
   }
@@ -44,8 +56,16 @@ object SetReachabilityChecker {
     }
   } 
   
-  def correctChecker(s: System, initial: List[State], target: List[State]) : Boolean = {
-    reachable(s, initial, target) == reachabilityCheck(s, initial.content, target.content) //should reachable use unique lists?
+  def reachableToCheck(s: System, initial: List[State], target: List[State]) : Boolean = {
+    require(reachable(s, initial, target))//should reachable use unique lists?
+    
+    reachabilityCheck(s, initial.content, target.content) 
+  } holds
+  
+  def checkToReachable(s: System, initial: List[State], target: List[State]) : Boolean = {
+    require(reachabilityCheck(s, initial.content, target.content))//should reachable use unique lists?
+    
+    reachable(s, initial, target)
   } holds
   
 }
