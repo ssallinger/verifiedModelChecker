@@ -11,61 +11,56 @@ object SetReachabilityChecker {
   
   case class System(nrOfRegisters: BigInt, transitions: List[(State, State)])
   
-  def reachable(s: System, initial: List[State], target: List[State]) : Boolean = {
-    initial.exists(i => successors(s.transitions, i).exists(i2 =>
-      target.contains(i2) ||
-      reachable(s, i2 :: initial, target)))
-  }
-  
-  def reachableSet(s: System, initial: Set[State], x: Set[State]) : Set[State]  = { //parameter x not neccessary, just for clarity
-    val next = initial ++ post(s, x)
-    if((next subsetOf x) && (x subsetOf next)) //fixed point
-      x
-    else
-      reachableSet(s, initial, next)
-  }
-  
-  def reachabilityCheck(s: System, initial: Set[State], target: Set[State]) : Boolean = {
-    val reachable = reachableSet(s, initial, Set[State]())
-    (reachable & target) != Set[State]()
-  }
-  
-  /*def reachabilityCheck(s: System, initial: Set[State], target: Set[State]) : Boolean = {
-    if((initial & target) != Set[State]())
-      true
+  abstract class Result
+  case object Unknown extends Result
+  case object Unreachable extends Result
+  case class Trace(states: List[State]) extends Result
+
+  //is maintaining a map a good idea or would it be better to store predeccessor in state?
+  def kReachabilityCheck(s: System, initial: List[State], target: State, pre: Map[State, State], k: BigInt) : Result = {
+    if(initial.contains(target))
+      Trace(getTrace(pre, target))
+    else if(k == 0)
+      Unknown
     else {
-      val next = post(s, initial) ++ initial
-      if((next subsetOf initial) && (initial subsetOf next))
-        false
+      //TODO implement set operations for lists (e.g. with sorted lists)
+      val p = post(s, initial, pre)
+      val next = p._1 ++ initial
+      if(next.content == initial.content) //is this a good way of checking equality?
+        Unreachable
       else
-        reachabilityCheck(s, next, target)
+        kReachabilityCheck(s, next, target, p._2, k - 1)
     }  
-  }*/
-  
-  def post(s: System, states: Set[State]) : Set[State] = {
-    //union over successors of all states
-    setToList(states).map(st => successors(s.transitions, st).content).foldLeft(Set[State]())(_++_)
   }
   
-  def successors(tr: List[(State, State)], s: State) : List[State] = {
+  def getTrace(pre: Map[State, State], s: State) : List[State] = {
+    if(!pre.contains(s))
+      List(s)
+    else
+      s :: getTrace(pre, pre(s))
+  }
+  
+  def post(s: System, states: List[State], pre: Map[State, State]) : (List[State], Map[State, State]) = {
+    states match {
+      case Nil() => (List(), pre)
+      case x :: xs => {
+        val succ = successors(s.transitions, x, pre)
+        val p = post(s, xs, succ._2)
+        (succ._1 ++ p._1, p._2)
+      }
+    }
+  }
+  
+  def successors(tr: List[(State, State)], s: State, pre: Map[State, State]) : (List[State], Map[State, State]) = {
     tr match {
-      case Nil() => List()
+      case Nil() => (List(), pre)
       case Cons((s1,s2), trs) =>
-        if (s1 == s) Cons(s2, successors(trs, s))
-        else successors(trs, s)
+        if (s1 == s) {
+          val succ = successors(trs, s, pre.updated(s2, s1))
+          (Cons(s2, succ._1), succ._2) //if s2 already in map it wouldn't have to be added to list-> adapt?
+        } else
+          successors(trs, s, pre)
     }
   } 
-  
-  def reachableToCheck(s: System, initial: List[State], target: List[State]) : Boolean = {
-    require(reachable(s, initial, target))//should reachable use unique lists?
-    
-    reachabilityCheck(s, initial.content, target.content) 
-  } holds
-  
-  def checkToReachable(s: System, initial: List[State], target: List[State]) : Boolean = {
-    require(reachabilityCheck(s, initial.content, target.content))//should reachable use unique lists?
-    
-    reachable(s, initial, target)
-  } holds
   
 }
