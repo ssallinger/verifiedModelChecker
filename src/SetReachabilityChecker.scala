@@ -25,7 +25,7 @@ object SetReachabilityChecker {
     else {
       //TODO implement set operations for lists (e.g. with sorted lists)
       val p = post(s, initial, pre)
-      val next = p._1 ++ initial
+      val next = (p._1 ++ initial).unique
       if(next.content == initial.content) //is this a good way of checking equality?
         Unreachable
       else
@@ -33,11 +33,35 @@ object SetReachabilityChecker {
     }  
   }
   
+  //TODO prove
+  def correctTrace(s: System, initial: List[State], target: State, k: BigInt) : Boolean = {
+    val res = kReachabilityCheck(s, initial, target, Map(), k)
+    res match {
+      case Trace(t) =>
+        /*initial.contains(t.last) &&
+        t.head == target && */
+        isTrace(s, t)
+      case _ => true
+    }
+  } holds
+  
+  //builds trace as list with target state as first and initial state as last element
   def getTrace(pre: Map[State, State], s: State) : List[State] = {
     if(!pre.contains(s))
       List(s)
     else
       s :: getTrace(pre, pre(s))
+  }
+  
+  def isTrace(s: System, t: List[State]) : Boolean = {
+    t match {
+      case s1 :: s2 :: ts => 
+        if(s.transitions.contains((s2, s1)))
+          isTrace(s, s2 :: ts)
+        else
+          false
+      case _ => true
+    }
   }
   
   def post(s: System, states: List[State], pre: Map[State, State]) : (List[State], Map[State, State]) = {
