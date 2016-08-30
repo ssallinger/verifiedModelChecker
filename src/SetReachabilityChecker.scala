@@ -53,10 +53,13 @@ object SetReachabilityChecker {
    }
   }
   
-  //TODO proof
-  def successorsTransition(sys: System, s: State) : Boolean = {
-    val res = successors(sys.transitions, s)
-    res.forall(st => sys.transitions.contains((s, st)))
+  def successorsTransition(tr: List[(State, State)], s: State, st: State) : Boolean = {
+    require (successors(tr, s).contains(st)) 
+    tr match {
+      case Nil() => tr.contains((s, st))
+      case x :: xs => ((successors(xs, s).contains(st) && successorsTransition(xs, s, st)) || (x._2 == st && x._1 == s)) &&
+                      tr.contains((s, st))
+    }
   } holds
   
   def isTrace(s: System, t: List[State]) : Boolean = {
@@ -67,8 +70,6 @@ object SetReachabilityChecker {
       case _ => true
     }
   }
-  
-  
   
   //TODO prove
   def correctTrace(s: System, initial: List[State], target: State, k: BigInt) : Boolean = {
