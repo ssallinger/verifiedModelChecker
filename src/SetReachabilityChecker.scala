@@ -17,7 +17,7 @@ object SetReachabilityChecker {
   case class Trace(states: List[State]) extends Result
 
   def kReachabilityCheck(currentTrace: List[State], s: System, target: State, k: BigInt) : Result = {
-    require(!currentTrace.isEmpty)
+    require(!currentTrace.isEmpty && isTrace(s, currentTrace))
     
     if(currentTrace.head == target)
       Trace(currentTrace)
@@ -30,6 +30,7 @@ object SetReachabilityChecker {
   }
 
   def exploreSuccessors(succ: List[State], currentTrace: List[State], s: System, target: State, k: BigInt, unknown: Boolean) : Result = {
+    require(isTrace(s, currentTrace) && (currentTrace.isEmpty || succ.forall(s1 => s.transitions.contains((currentTrace.head, s1)))))
     succ match {
       case Nil() => if(unknown) Unknown else Unreachable
          case x :: xs => {
@@ -50,7 +51,13 @@ object SetReachabilityChecker {
        if (s1 == s) Cons(s2, successors(trs, s))
        else successors(trs, s)
    }
-  } 
+  }
+  
+  //TODO proof
+  def successorsTransition(sys: System, s: State) : Boolean = {
+    val res = successors(sys.transitions, s)
+    res.forall(st => sys.transitions.contains((s, st)))
+  } holds
   
   def isTrace(s: System, t: List[State]) : Boolean = {
     t match {
@@ -60,6 +67,8 @@ object SetReachabilityChecker {
       case _ => true
     }
   }
+  
+  
   
   //TODO prove
   def correctTrace(s: System, initial: List[State], target: State, k: BigInt) : Boolean = {
