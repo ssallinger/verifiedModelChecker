@@ -16,75 +16,67 @@ object SetReachabilityChecker {
   case object Unreachable extends Result
   case class Trace(states: List[State]) extends Result
 
-  //is maintaining a map a good idea or would it be better to store predeccessor in state?
-  def kReachabilityCheck(s: System, initial: List[State], target: State, pre: Map[State, State], k: BigInt) : Result = {
-    if(initial.contains(target))
-      Trace(getTrace(pre, target))
+  def kReachabilityCheck(currentTrace: List[State], s: System, target: State, k: BigInt) : Result = {
+    require(!currentTrace.isEmpty)
+    
+    if(currentTrace.head == target)
+      Trace(currentTrace)
     else if(k == 0)
       Unknown
     else {
-      //TODO implement set operations for lists (e.g. with sorted lists)
-      val p = post(s, initial, pre)
-      val next = (p._1 ++ initial).unique
-      if(next.content == initial.content) //is this a good way of checking equality?
-        Unreachable
-      else
-        kReachabilityCheck(s, next, target, p._2, k - 1)
-    }  
-  }
-  
-  //TODO prove
-  def correctTrace(s: System, initial: List[State], target: State, k: BigInt) : Boolean = {
-    val res = kReachabilityCheck(s, initial, target, Map(), k)
-    res match {
-      case Trace(t) =>
-        /*initial.contains(t.last) &&
-        t.head == target && */
-        isTrace(s, t)
-      case _ => true
+      val succ = successors(s.transitions, currentTrace.head)
+      exploreSuccessors(succ, currentTrace, s, target, k - 1, false)
     }
-  } holds
-  
-  //builds trace as list with target state as first and initial state as last element
-  def getTrace(pre: Map[State, State], s: State) : List[State] = {
-    if(!pre.contains(s))
-      List(s)
-    else
-      s :: getTrace(pre, pre(s))
   }
+
+  def exploreSuccessors(succ: List[State], currentTrace: List[State], s: System, target: State, k: BigInt, unknown: Boolean) : Result = {
+    succ match {
+      case Nil() => if(unknown) Unknown else Unreachable
+         case x :: xs => {
+         val res = kReachabilityCheck(x :: currentTrace, s, target, k)
+         res match {
+           case Trace(t) => res //target found
+           case Unknown => exploreSuccessors(xs, currentTrace, s, target, k, true)
+           case Unreachable => exploreSuccessors(xs, currentTrace, s, target, k, unknown)
+         }
+      }
+    }
+  }
+
+  def successors(tr: List[(State, State)], s: State) : List[State] = {
+   tr match {
+     case Nil() => List()
+     case Cons((s1,s2), trs) =>
+       if (s1 == s) Cons(s2, successors(trs, s))
+       else successors(trs, s)
+   }
+  } 
   
   def isTrace(s: System, t: List[State]) : Boolean = {
     t match {
       case s1 :: s2 :: ts => 
-        if(s.transitions.contains((s2, s1)))
-          isTrace(s, s2 :: ts)
-        else
-          false
+        s.transitions.contains((s2, s1)) &&
+        isTrace(s, s2 :: ts)
       case _ => true
     }
   }
   
-  def post(s: System, states: List[State], pre: Map[State, State]) : (List[State], Map[State, State]) = {
-    states match {
-      case Nil() => (List(), pre)
-      case x :: xs => {
-        val succ = successors(s.transitions, x, pre)
-        val p = post(s, xs, succ._2)
-        (succ._1 ++ p._1, p._2)
-      }
+  //TODO prove
+  def correctTrace(s: System, initial: List[State], target: State, k: BigInt) : Boolean = {
+    val res = exploreSuccessors(initial, List(), s, target, k, false)
+    res match {
+      case Trace(t) =>
+        //initial.contains(t.last) &&
+        //t.head == target && 
+        isTrace(s, t)
+        /*t match {
+          case s1 :: s2 :: ts => 
+            s.transitions.contains((s2, s1))
+          case _ => true
+        }*/
+      case _ => true
     }
-  }
-  
-  def successors(tr: List[(State, State)], s: State, pre: Map[State, State]) : (List[State], Map[State, State]) = {
-    tr match {
-      case Nil() => (List(), pre)
-      case Cons((s1,s2), trs) =>
-        if (s1 == s) {
-          val succ = successors(trs, s, pre.updated(s2, s1))
-          (Cons(s2, succ._1), succ._2) //if s2 already in map it wouldn't have to be added to list-> adapt?
-        } else
-          successors(trs, s, pre)
-    }
-  } 
+  } holds
+
   
 }
