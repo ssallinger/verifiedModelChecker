@@ -83,7 +83,7 @@ object SetReachabilityChecker {
     subset(l1, l1)
   } holds
   
-   
+  
 
 //   def kReachabilityCheck(currentTrace: List[State], s: System, target: State, k: BigInt) : Result = {
 //     require(!currentTrace.isEmpty &&
