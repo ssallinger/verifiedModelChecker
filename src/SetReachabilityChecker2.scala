@@ -47,12 +47,41 @@ object SetReachabilityChecker {
   }
   
   
+  def canTransitionSuccHelp(tr: List[(State,State)], s: State, succ: List[State]): Boolean = {
+    //val succ = successors(tr,s)
+    
+    require(subset(succ, successors(tr,s)))
+    succ match {
+      case Nil() => true
+      case Cons(x, xs) => successorsTransition(tr, s, x) && tr.contains((s,x)) && canTransitionSuccHelp(tr, s, xs) && canTransition(tr, s, succ)
+    }
+    //canTransition(tr, s, succ)
+  } holds
+  
   def canTransitionSucc(tr: List[(State,State)], s: State): Boolean = {
     val succ = successors(tr,s)
     
+    subset(succ, successors(tr,s)) &&
+    canTransitionSuccHelp(tr, s, succ) &&
     canTransition(tr, s, succ)
+    
   } holds
   
+  def subset[X](l1: List[X], l2: List[X]) : Boolean = {
+    l1 match {
+      case Nil() => true
+      case Cons(x, xs) => l2.contains(x) && subset(xs,  l2)
+    }
+  }
+  
+  @ignore
+  def subsetReflexive[X](l1: List[X]) : Boolean = {
+    /*l1 match {
+      case Nil() => true
+      case Cons(x, xs) => l1.contains(x) && subset(xs, l1)
+    }*/
+    subset(l1, l1)
+  } holds
   
    
 
