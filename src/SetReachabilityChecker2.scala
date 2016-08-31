@@ -20,23 +20,23 @@ object SetReachabilityChecker {
   
   
   def successors(tr: List[(State, State)], s: State) : List[State] = {
-   tr match {
-     case Nil() => List()
-     case Cons((s1,s2), trs) =>
-       if (s1 == s) Cons(s2, successors(trs, s))
-       else successors(trs, s)
-   }
+    tr match {
+      case Nil() => List[State]()
+      case Cons((s1,s2), trs) =>
+        if (s1 == s) Cons(s2, successors(trs, s))
+        else successors(trs, s)
+    }
   }
   
   
-  def successorsTransition(tr: List[(State, State)], s: State, st: State) : Boolean = {
-    require (successors(tr, s).contains(st)) 
-    tr match {
-      case Nil() => tr.contains((s, st))
-      case x :: xs => ((successors(xs, s).contains(st) && successorsTransition(xs, s, st)) || (x._2 == st && x._1 == s)) &&
-                      tr.contains((s, st))
-    }
-  } holds
+//   def successorsTransition(tr: List[(State, State)], s: State, st: State) : Boolean = {
+//     require (successors(tr, s).contains(st)) 
+//     tr match {
+//       case Nil() => tr.contains((s, st))
+//       case x :: xs => ((successors(xs, s).contains(st) && successorsTransition(xs, s, st)) || (x._2 == st && x._1 == s)) &&
+//                       tr.contains((s, st))
+//     }
+//   } holds
   
   
   def canTransition(tr: List[(State,State)], x: State, l: List[State]): Boolean = {
@@ -47,41 +47,58 @@ object SetReachabilityChecker {
   }
   
   
-  def canTransitionSuccHelp(tr: List[(State,State)], s: State, succ: List[State]): Boolean = {
-    //val succ = successors(tr,s)
+  def canTransitionMore(p: State, q: State, tr: List[(State,State)], x: State, l: List[State]): Boolean = {
+    require(canTransition(tr,x,l))
     
-    require(subset(succ, successors(tr,s)))
-    succ match {
-      case Nil() => true
-      case Cons(x, xs) => successorsTransition(tr, s, x) && tr.contains((s,x)) && canTransitionSuccHelp(tr, s, xs) && canTransition(tr, s, succ)
+    l match {
+      case Nil() => canTransition((p,q) :: tr, x, l)
+      case Cons(y,ys) => 
+        canTransitionMore(p,q,tr,x,ys) &&
+        canTransition((p,q) :: tr, x, l)
     }
-    //canTransition(tr, s, succ)
   } holds
+  
+  
   
   def canTransitionSucc(tr: List[(State,State)], s: State): Boolean = {
     val succ = successors(tr,s)
     
-    subset(succ, successors(tr,s)) &&
-    canTransitionSuccHelp(tr, s, succ) &&
-    canTransition(tr, s, succ)
+    tr match {
+      case Nil() => canTransition(tr, s, succ)
+      case Cons((p,q),trs) => 
+        canTransitionSucc(trs, s) && // by induction, we know: canTransition(trs, s, successors(trs,s))
+        canTransitionMore(p,q,trs,s,successors(trs,s)) && // we deduce: canTransition(tr, s, successors(trs,s))
+        canTransition(tr,s,succ)
+    }
     
   } holds
   
-  def subset[X](l1: List[X], l2: List[X]) : Boolean = {
-    l1 match {
-      case Nil() => true
-      case Cons(x, xs) => l2.contains(x) && subset(xs,  l2)
-    }
-  }
-  
-  @ignore
-  def subsetReflexive[X](l1: List[X]) : Boolean = {
-    /*l1 match {
-      case Nil() => true
-      case Cons(x, xs) => l1.contains(x) && subset(xs, l1)
-    }*/
-    subset(l1, l1)
-  } holds
+//   def canTransitionSuccHelp(tr: List[(State,State)], s: State, succ: List[State]): Boolean = {
+//     //val succ = successors(tr,s)
+//     
+//     require(subset(succ, successors(tr,s)))
+//     succ match {
+//       case Nil() => true
+//       case Cons(x, xs) => successorsTransition(tr, s, x) && tr.contains((s,x)) && canTransitionSuccHelp(tr, s, xs) && canTransition(tr, s, succ)
+//     }
+//     //canTransition(tr, s, succ)
+//   } holds
+//   
+//   def subset[X](l1: List[X], l2: List[X]) : Boolean = {
+//     l1 match {
+//       case Nil() => true
+//       case Cons(x, xs) => l2.contains(x) && subset(xs,  l2)
+//     }
+//   }
+//   
+//   @ignore
+//   def subsetReflexive[X](l1: List[X]) : Boolean = {
+//     /*l1 match {
+//       case Nil() => true
+//       case Cons(x, xs) => l1.contains(x) && subset(xs, l1)
+//     }*/
+//     subset(l1, l1)
+//   } holds
   
   
 
