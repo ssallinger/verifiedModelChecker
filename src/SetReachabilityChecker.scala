@@ -18,10 +18,10 @@ object SetReachabilityChecker {
 
   def kReachabilityCheck(currentTrace: List[State], s: System, target: State, k: BigInt) : Result = {
     require(!currentTrace.isEmpty &&
-            isTrace(s, currentTrace) &&
+            isTrace(s, currentTrace) //&&
             //containsForall(successors(s.transitions, currentTrace.head)) &&
-            allSuccessorsTransition(s, currentTrace.head, successors(s.transitions, currentTrace.head)) &&
-            successors(s.transitions, currentTrace.head).forall(s1 => s.transitions.contains((currentTrace.head, s1)))
+            //allSuccessorsTransition(s, currentTrace.head, successors(s.transitions, currentTrace.head)) &&
+            //successors(s.transitions, currentTrace.head).forall(s1 => s.transitions.contains((currentTrace.head, s1)))
     )
     
     if(currentTrace.head == target)
@@ -34,7 +34,7 @@ object SetReachabilityChecker {
   }
   
   //@ignore
-  def containsForall(l: List[State]) : Boolean = {
+  /*def containsForall(l: List[State]) : Boolean = {
     l match {
       case Nil() => l.forall(x => l.contains(x))
       case x :: xs => l.contains(x) && containsForall(xs) && xs.forall(y => l.contains(y)) && l.forall(y => l.contains(y))
@@ -49,7 +49,7 @@ object SetReachabilityChecker {
       case x :: xs => true
     }
     
-  } holds
+  } holds*/
 
   def exploreSuccessors(succ: List[State], currentTrace: List[State], s: System, target: State, k: BigInt, unknown: Boolean) : Result = {
     require(isTrace(s, currentTrace) && (currentTrace.isEmpty || succ.forall(s1 => s.transitions.contains((currentTrace.head, s1)))))
@@ -95,12 +95,12 @@ object SetReachabilityChecker {
     }
   } holds
   
-  def test(res: List[State]) : Boolean = {
+  /*def test(res: List[State]) : Boolean = {
     res match {
       case Nil() => trivial
       case x :: xs => test(xs) && res.forall(st => true)
     }
-  } holds
+  } holds*/
   
   def isTrace(s: System, t: List[State]) : Boolean = {
     t match {
@@ -112,6 +112,7 @@ object SetReachabilityChecker {
   }
   
   //TODO prove
+  @ignore
   def correctTrace(s: System, initial: List[State], target: State, k: BigInt) : Boolean = {
     val res = exploreSuccessors(initial, List(), s, target, k, false)
     res match {
